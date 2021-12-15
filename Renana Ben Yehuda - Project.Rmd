@@ -1,0 +1,526 @@
+---
+title: "Project"
+author: "Renana Ben Yehuda"
+date: "8/24/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load libraries
+library(stats)
+library (readr)
+library(ggplot2)
+library(stringr)
+library(dplyr)
+library(ltm)
+library(corrplot)
+library(rpart)
+library(rpart.plot)
+library(class)
+library(BBmisc)
+library(naivebayes)
+library(pROC)
+```
+
+# Backgroud
+
+Gun violence is a serious problem in the United States. It results in ten of thousands of deaths each year. Causes of death or injury from gun violence vary between - suicide, accidental, homicide etc. Statistics show that gun violence is only increasing and 2020 was the deadliest gun violence year in decades. The year 2021 is worse compared to 2020. The Washington post conducted an analysis based on the data of GVA and found that in the first five months of 2021, about 8,100 people were killed by firearms in the united states. 
+
+As shown above, gun violence is a serious problem that requires attention and research in order to decrease the number of incidents. A licensing system is one of the solutions to minimize the phenomenon. Currently, the federal law in the United States does not require a license in order to acquire a gun. Implementing a licensing system can help prevent people who are dangerous or not suitable from owning a gun. However, legislation is a long process that can take years to complete. Gun violence is an immediate problem that requires prompt action. Better understating of detection and prevention of incidents could potentially save lives. 
+
+The project focuses on prediction of the gender of the suspect in the incident. We chose to investigate incidents in which, there were only one suspect and one or zeros victims. Our hypothesis is that there is a relationship between suspect's gender and the rest of the variables. Based on the variables that were found to have a strong relationship between them and suspect's gender, we could predict the suspect's gender.
+
+# Data description 
+
+The Gun Violence Archive (GVA) is a non profit research organization that records all the incidents of gun violence in the US. For each incident it includes details like location, number of gun, number of victims, description of the incident and more. While the GVA saves the records of the incidents, the data is not organized in a specific file that allows individuals to investigate the data and withdraw conclusions. For this reason, a user on GitHub named "janesqo" decided to take the task of organizing the data on gun violence in CSV files. The credit for the data goes to the GVA and the credit for the organization of the data goes to "janesqo" from GitHub.
+Link to the GitHub - https://github.com/jamesqo/gun-violence-data
+
+The data chosen contains all gun-related violence in the US for the following months: 01-02/2014, 01-04/2015, 01-04/2016, 01-03/2017, 01-03/2018. In total, there were 70,000 incidents in these months. The data is organized in a data frame structure. Each row contains a single incident (observation), each column contains a single variable. The variables for the data are as follows:\
+1. incident_id (categorical) – the ID for the incident\
+2. date (categorical) – the date\
+3. state (categorical) – the state\
+4. city_or_county (categorical) – the city or county\
+5. address (categorical) – the exact address\
+6. n_killed (discrete) – number of people killed in the incident\
+7. n_injured (discrete) – number of people injured in the incident\
+8. incident_url (categorical) – the government report of the incident where the data was taken from\
+9. source_url (categorical) – the news report of the incident\
+10. incident_url_fields_missing (categorical) – TRUE/FALSE which indicates if the incident had no URL links.\
+11. congressional_district (discrete) – the number of the congressional district where the incident took place\
+12. gun_stolen (categorical) – indicates if a stolen gun was found in the incident\
+13. gun_type (categorical) – indicates the gun type that was in the incident\
+14. incident_characteristics (categorical) – short description that includes information whether shots were fired or not, if someone died or was injured in the incident, who was injured, the supposed motive.\
+15. latitude (continuous) – specific for the location of the incident\
+16. location_description (categorical) – description of the location of the incident (7-eleven, specific park, etc.)\
+17. longitude (continuous) - specific for the location of the incident\
+18.	n_guns_involved (discrete) – number of guns involved in the incident\
+19.	notes – short description notes on the incident\
+20.	participant_age (discrete) – the age of the participants in the incident\
+21.	participant_age_group (categorical) – the age group of the participants (Child, Teen, Adult)\
+22.	participant_gender (categorical) – the gender of the participants\
+23.	participant_name (categorical) – the names of the participants\
+24.	participant_relationship (categorical) – the relationship between the participants\
+25.	participant_status (categorical) – the status of the participants after the incident (Unharmed, injured, killed, arrested)\
+26.	participant_type (categorical) – the type of the participant (Victim or subject/suspect)\
+27.	sources (categorical) – links to news article about the incident\
+28.	state_house_district (discrete) – the number of the state house district where the incident had occurred\
+29.	state_senate_district (discrete) – the number of the state senate district where the incident had occurred\
+
+```{r Load-Data, echo=FALSE, include=FALSE}
+
+urlfile <- c("https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.01.2014.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.01.2015.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.01.2016.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.01.2017.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.01.2018.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.02.2014.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.02.2015.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.02.2016.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.02.2017.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.02.2018.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.03.2015.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.03.2016.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.03.2017.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.03.2018.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.04.2015.csv", "https://raw.githubusercontent.com/jamesqo/gun-violence-data/master/intermediate/stage2.04.2016.csv")
+
+# Initialize data frame
+rawData <- data.frame()
+
+# Add data from URL's to data frame
+for (urlA in urlfile){rawData <- rbind(rawData, read_csv(url(urlA)))}
+```
+
+# Filteration of the data
+
+Firstly, the following columns were removed since the data in the columns cannot help in classification.
+Firstly, some columns were removed due to the fact that the data they store cannot be divided into groups. Thus, the data in those columns probably would not help the classification model.  The following columns were removed - incident_id, date, address, incident_url, source_url, incident_url_fields_missing, latitude, location_description, longitude, notes, participant_name, sources, state_house_district, state_senate_district. Another three columns were removed due to many missing values, the columns were participant_relationship, gun_stolen, gun_type.
+
+We chose to focus on solely incidents that had one suspect and at most one victim. In addition, we decided to investigate incidents in which shooting did occur. Thus, rows with "Non shooting incidents" were removed from the data.
+In order to investigate the relationship between the gender of the suspect and the other variables, we performed a separation of the data to all columns that contained data of both suspects and victims. For example, we split the column that contained the age of the participants to two columns - suspect's age, victim's age. Our response variable was the suspect's gender, therefore all rows that contained NA in this columns were removed from the data. 
+
+The groups of suspect's gender were imbalanced. There were a lot more male suspects than female suspects. Therefore, we sampled a 1000 samples from each gender, in order to get balanced groups. We saved the data in a new data frame called 'sampledData'. The exploratory data analysis and the models' training were performed with the sampled data.
+
+```{r Filter-the-data, echo=FALSE, message = FALSE, warning = FALSE, results = FALSE}
+
+# Find missing values in participant_gender column
+misVal <- is.na(rawData$participant_gender)
+
+# Remove irrelevant columns
+irrCol <- c(1,2,5,8,9,10,15,16,17,19,23,24,27,28,29)
+filteredData <- subset(rawData, select = -irrCol)
+
+# Remove rows where gender is NA
+filteredData <- filteredData[-which(misVal),]
+
+# Remove rows with "Non-shooting" incidents
+string <- 'Non-Shooting Incident'
+indices <- lapply(filteredData$incident_characteristics, function(x){grepl(string, x)})
+filteredData <- filteredData[-which(unlist(indices)),] 
+
+# Keep only rows where at least one of the participants is the suspect
+string <- 'Subject-Suspect'
+indices <- lapply(filteredData$participant_type, function(x){grepl(string, x)})
+filteredData <- filteredData[which(unlist(indices)),]
+
+
+# Find the numbers for the suspects in each incident
+numSuspects <- sapply(filteredData$participant_type, function(x){strsplit(x, '||',fixed = TRUE )}) 
+numSuspects <- sapply(numSuspects, function(x){x[grepl("Subject-Suspect",x)]})
+numSuspects <- sapply(numSuspects, function(x){strsplit(x, "Subject-Suspect",fixed = TRUE)})
+numSuspects <- unname(numSuspects)
+
+# Add new columns as number of suspects
+filteredData$number_suspects <- sapply(numSuspects, function(x){length(unlist(x))})
+
+
+# Create a vector that contains the strings of the numbers of the suspects
+numSuspects <- sapply(numSuspects, function(x){paste(x, collapse = "|")})
+
+
+# Find the numbers for the victims in each incident
+numVictims <- sapply(filteredData$participant_type, function(x){strsplit(x, '||',fixed = TRUE )}) 
+numVictims <- sapply(numVictims, function(x){x[grepl("Victim",x)]})
+numVictims <- sapply(numVictims, function(x){strsplit(x, "Victim",fixed = TRUE)})
+numVictims <- unname(numVictims)
+
+# Add new columns as number of victims
+filteredData$number_victims <- sapply(numVictims, function(x){length(unlist(x))})
+
+# Create a vector that contains the strings of the numbers of the victims
+numVictims <- sapply(numVictims, function(x){paste(x, collapse = "|")})
+
+# Remove incidents with more than 1 suspect or more than 1 victim
+rowsRemove <- -c(which(filteredData$number_victims>1),which(filteredData$number_suspects>1))
+filteredData <- filteredData[rowsRemove,]
+numSuspects <- numSuspects[rowsRemove]
+numVictims <- numVictims[rowsRemove]
+
+
+
+### Split data in columns to separate columns for suspects and victims ###
+
+
+# Split the age column to suspect's age and victim's age 
+age <- sapply(filteredData$participant_age, function(x){strsplit(x, '||',fixed = TRUE )})
+ageSuspects <- sapply(1:length(age), function(x){age[[x]][grepl(numSuspects[x],age[[x]])]})
+ageSuspects <- sapply(ageSuspects, function(x){gsub(".*::","",x)})
+ageSuspects <- sapply(ageSuspects, function(x) if(identical(x, character(0))) NA_character_ else x)
+ageVictims <- sapply(1:length(age), function(x){age[[x]][grepl(numVictims[x],age[[x]])]})
+ageVictims <- sapply(ageVictims, function(x){gsub(".*::","",x)})
+ageVictims <- sapply(ageVictims, function(x) if(identical(x, character(0))) NA_character_ else x)
+
+# Remove age column from data
+filteredData <- subset(filteredData, select = -participant_age)
+
+# Add new age columns for suspects and victims
+filteredData$ageSuspects <- as.numeric(ageSuspects)
+filteredData$ageVictims <- as.numeric(ageVictims)
+
+
+# Split the age group column to suspect's age group and victim's age group
+AG <- sapply(filteredData$participant_age_group, function(x){strsplit(x, '||',fixed = TRUE )})
+AGSuspects <- sapply(1:length(AG), function(x){AG[[x]][grepl(numSuspects[x],AG[[x]])]})
+AGSuspects <- sapply(AGSuspects, function(x){gsub(".*::","",x)})
+AGSuspects <- sapply(AGSuspects, function(x) if(identical(x, character(0))) NA_character_ else x)
+AGVictims <- sapply(1:length(AG), function(x){AG[[x]][grepl(numVictims[x],AG[[x]])]})
+AGVictims <- sapply(AGVictims, function(x){gsub(".*::","",x)})
+AGVictims <- sapply(AGVictims, function(x) if(identical(x, character(0))) NA_character_ else x)
+
+# Remove age group column from data
+filteredData <- subset(filteredData, select = -participant_age_group)
+
+# Add new age group columns for suspects and victims
+filteredData$ageGroupSuspects <- AGSuspects
+filteredData$ageGroupVictims <- AGVictims
+
+
+# Split the gender column to suspect's gender and victim's gender
+gen <- sapply(filteredData$participant_gender, function(x){strsplit(x, '||',fixed = TRUE )})
+genSuspects <- sapply(1:length(gen), function(x){gen[[x]][grepl(numSuspects[x],gen[[x]])]})
+genSuspects <- sapply(genSuspects, function(x){gsub(".*::","",x)})
+genSuspects <- sapply(genSuspects, function(x) if(identical(x, character(0))) NA_character_ else x)
+genVictims <- sapply(1:length(gen), function(x){gen[[x]][grepl(numVictims[x],gen[[x]])]})
+genVictims <- sapply(genVictims, function(x){gsub(".*::","",x)})
+genVictims <- sapply(genVictims, function(x) if(identical(x, character(0))) NA_character_ else x)
+
+# Remove gender column from data
+filteredData <- subset(filteredData, select = -participant_gender)
+
+# Add new gender columns for suspects and victims
+filteredData$genderSuspects <- genSuspects
+filteredData$genderVictims <- genVictims
+
+
+# Split the status column to suspect's status and victim's status
+stt <- sapply(filteredData$participant_status, function(x){strsplit(x, '||',fixed = TRUE )})
+sttSuspects <- sapply(1:length(stt), function(x){stt[[x]][grepl(numSuspects[x],stt[[x]])]})
+sttSuspects <- sapply(sttSuspects, function(x){gsub(".*::","",x)})
+sttSuspects <- sapply(sttSuspects, function(x) if(identical(x, character(0))) NA_character_ else x)
+sttVictims <- sapply(1:length(stt), function(x){stt[[x]][grepl(numVictims[x],stt[[x]])]})
+sttVictims <- sapply(sttVictims, function(x){gsub(".*::","",x)})
+sttVictims <- sapply(sttVictims, function(x) if(identical(x, character(0))) NA_character_ else x)
+# Remove status column from data
+filteredData <- subset(filteredData, select = -participant_status)
+
+# Add new status columns for suspects and victims
+filteredData$statusSuspects <- sttSuspects
+filteredData$statusVictims <- sttVictims
+
+
+# Find number of "Unknown" values in gun_stolen and gun_type
+unknownStolen <- sum(sapply(filteredData$gun_stolen, function(x){grepl("Unknown",x)}))
+unknownType <- sum(sapply(filteredData$gun_type, function(x){grepl("Unknown",x)}))
+
+# Due to many unknown values - gun_stolen and gun_type columns will be removed
+filteredData <- subset(filteredData, select = -c(gun_stolen, gun_type))
+
+# Find missing values in gender columns
+misValS <- is.na(filteredData$genderSuspects)
+misValV <- is.na(filteredData$genderVictims)
+rowsRemove <- !Reduce(`|`, list(misValS, misValV))
+
+# Remove rows where gender is missing
+filteredData <- filteredData[rowsRemove,]
+
+# Order data frame based on suspect's gender
+filteredData <- filteredData[order(filteredData$genderSuspects),]
+
+set.seed(1) # set seed
+
+## To get same size group for each gender - we will take 1000 samples from each gender
+indicesF <- which(grepl('Female', filteredData$genderSuspects))
+indicesM <- which(grepl('Male', filteredData$genderSuspects))
+indicesF <- sample(indicesF, 1000, replace=FALSE)
+indicesM <- sample(indicesM, 1000, replace=FALSE)
+samples <- c(indicesF, indicesM)
+
+# Create a data set for samples
+sampledData <- filteredData[samples,]
+
+# Add a column with the gender of the suspect as binary numbers (0-male / 1-female)
+sampledData$genderSuspectsBinary <- c(rep(1,1000), rep(0,1000))
+```
+
+# Explanatory data analysis
+### Plot number 1 - Number of NA values in each variable
+
+This plot shows the number of NA values in each variable. We chose this plot for EDA, in order to see if any variables need to be removed due to many NA values.
+It can be seen that the variables ageSuspects and ageVictims have about 30% NA values. Also, the variable n_guns_involved have about 36% NA values. Because age is an important variable, we decided to keep it despite the missing values. On the other hand, n_guns_involved will be removed from the data.
+
+```{r Plot1, echo=FALSE, message = FALSE, warning = FALSE, results = FALSE}
+##### PLOT NUMBER 1 ##### - Number of NA values
+
+## Create a bar plot - number of NA values (y axis) and variables (x axis) ##
+
+# Find missing values in data after filtration and sampling for the plot
+misVal <- data.frame(is.na(sampledData))
+
+# Create data frame for plot
+data <- data.frame(Variables = names(misVal), Percentage_NA = 100*unname(colSums(misVal))/nrow(misVal))
+
+# Barplot
+ggplot(data, aes(x=Variables, y=Percentage_NA)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle=90, hjust=1)) +
+  ggtitle("Percentage of NA values for each variable")
+
+# Remove n_guns_involved due to many NA values
+sampledData <- subset(sampledData, select = -c(n_guns_involved))
+```
+### Plot number 2 - Total number of suspects for each gender
+
+This plot shows the total number of suspects for each gender. We decided to show this plot in order to see the imbalance between our gender groups. It can be shown that there is a high imbalance between the groups. This difference is the reason we sampled a 1000 samples from each group. We wanted to achieve same sized group in order to remove bias from the model we will later train. 
+
+```{r Plot2, echo=FALSE, message = FALSE, warning = FALSE, results = FALSE}
+##### PLOT NUMBER 2 ##### - Number of suspects in each gender
+
+## Create a bar plot - number of suspects (y axis) and Genders (x axis) ##
+
+# Count number of Females
+numF <- sum(sapply(filteredData$genderSuspects, function(x){grepl("Female",x)}))
+
+data <- data.frame(Gender = c('Male', 'Female'), participants_number = c(nrow(filteredData)-numF, numF))
+
+# Barplot
+ggplot(data, aes(x=Gender, y=participants_number)) + 
+  geom_bar(stat = "identity") +
+  ggtitle("Number of suspects for each gender")
+```
+
+### Plots number 3 - relationship between suspect's gender and each variable separately
+
+Each of these plot represents the relationship between gender's suspect and another variable. The p-value was calculated for each interaction and shown in the title of each figure. Plotting the relationships between our response and predictors was done to help our assessment of the predictors. Based on the interaction graphs and the p-value we chose which predictors will be used in our models.
+
+For the relationship between our response variable (categorical) and other categorical predictors, we used bar graphs. The x axis of the graph was the predictor, the colors of the bars were the suspect's gender and the y acis was the total number of people. For the statistical test we chose chi-square, when more than 80% of the cells had count more than 5. In case the condition was not true, we used Fisher's exact test to assess the interaction statistically. 
+
+For the relationship between our response variable and the numerical variables, we used logistic regression. The x axis is the predictor variable and the y axis is suspect's gender (0-male, 1-female).In the graph we plotted the logisitic regression, as well as the actual data points. Again, the title of the graph was the p-value of the interaction. The p-value was extracted from the results of the 'glm' function. 
+
+The alpha value was chosen to be 0.01. It can be shown in the graphs, that the variables which had p-value < 0.01 are - state, victim's gender, suspect's status, victim's status, number of victims, suspect's age and victim's age. Therefore, these variables were chosen as predictors for the classification models.
+
+```{r Plot3, echo=FALSE, message = FALSE, warning = FALSE, results = FALSE}
+##### PLOT NUMBER 3 ##### - Relationships between suspect's gender and the other variables
+
+## Find and plot relationship between suspect's gender and the categorical predictors ##
+
+# Get all the categorical predictors in a list
+predictors <- list(sampledData$state, sampledData$city_or_county, sampledData$congressional_district, sampledData$ageGroupSuspects, sampledData$ageGroupVictims, sampledData$genderVictims, sampledData$statusSuspects, sampledData$statusVictims)
+
+# Get the labels for the x axis of each plot
+xlabTitle <- c("State", "City / County", "Congressional district", "Age group - Suspects","Age group - Victims", "Gender - Victims", "Status - Suspects", "Status - Victims")
+
+# Initialize counter for the xlabels
+i = 0
+
+# Perform the statistic test for each predictor combined with outcome (suspect's gender)
+for (predictor in predictors){
+  
+  i = i + 1
+  tble <- table(sampledData$genderSuspects, predictor) # count the frequencies
+  
+  # Calculate the condition for chi-square - at most 20% of cells have a count less than 5
+  condition <- sum(as.data.frame(tble)$Freq < 5)/nrow(tble) 
+  
+  # Choose chi-square if condition is TRUE and fisher's exact if FALSE
+  if (condition < 0.2){details <- chisq.test(tble,correct = T)
+  }else{details <- fisher.test(tble, simulate.p.value=TRUE)}
+  tble <- as.data.frame(tble)
+  
+  # Plot the data with a bar graph and include p-value in the title
+  x <- ggplot(tble, aes(fill=Var1, y=Freq, x=predictor)) + 
+    theme(axis.text.x = element_text(angle=90, hjust=1)) +
+    geom_bar(position="dodge", stat="identity") + xlab(xlabTitle[i]) +
+    ggtitle(paste("P-value =", details$p.value, sep = " ")) + ylab("Number of people") + 
+    scale_fill_discrete(name = "Gender - Suspects") 
+  print(x)
+}
+
+
+## Find and plot relationship between suspect's gender and the numerical predictors ##
+
+# Get all the numerical predictors in a list
+predictors <- list(sampledData$n_killed, sampledData$n_injured, sampledData$number_victims, sampledData$ageSuspects, sampledData$ageVictims)
+
+# Get the labels for the x axis of each plot
+xlabTitle <- c("Number killed", "Number injured", "Number victims", "Suspect's age", "Victim's age")
+
+# Initialize counter for the xlabels
+i = 0
+
+# Perform logistic regression for each predictor combined with outcome (suspect's gender)
+for (predictor in predictors){
+  i = i + 1
+  response <- sampledData$genderSuspectsBinary
+  tble <- data.frame(response, predictor)
+  tble <- tble[complete.cases(tble),]
+  
+  # Perform logistic regression model
+  details <- glm(response ~ predictor, data = tble, family = binomial(link = "logit"))
+  
+  # Plot regression model with the data points and include p-value in the title
+  x <- ggplot(tble, aes(y=response,x=predictor)) +
+    geom_point() + geom_smooth(method="glm") + xlab(xlabTitle[i]) + 
+    ylab("Gender (0=male, 1=female)") +   
+    ggtitle(paste("P-value =",unname(coef(summary(details))[,'Pr(>|z|)'][2]), sep = " "))
+  print(x)
+}
+```
+
+### Plot 4 - Histogram number of injured based on suspect's gender
+
+It can be seen in graph 3, the relationship between suspect's gender and number of injured is not clear. We can see a slight interaction between the variable, but the significance of the interaction is not clear. We wanted to create an additional plot to investigate this interaction furthermore. A histogram of the two variables was plotted. The x axis is the number of injured, the y axis is the number of incidents and the color is the suspect's gender. It can be shown that two histograms were plotted, each one represents a different gender of the suspect.
+Based on the histrogram graph, we decided not to include this variable in the predictors for the models. The interaction between number of injured and suspect's gender did not seem strong enough in our opinion.
+
+```{r Plot4, echo=FALSE, message = FALSE, warning = FALSE, results = FALSE}
+##### PLOT NUMBER 4 ##### - relationship between suspect's gender and n_injured
+
+# Histogram to clarify the relationship between n_injured and suspect's gender 
+ggplot(sampledData, aes(x = n_injured, fill = genderSuspects)) +     
+  geom_histogram(position = "identity", alpha = 0.2, bins = 3)
+```
+
+## Create training and test sets
+
+In order to separate the data to training and test set, the sampled data was used and only complete cases were taken. The samples for each set were chosen randomly. The training set contained 75% of the samples and the test set contained 25% of the samples. We made sure the training set contained all the classes of each variable. Because the model would not be able to classify a new class in any of the variables in the test set. 
+
+
+```{r Generator-function, echo=FALSE, message = FALSE, warning = FALSE, results = FALSE}
+# Function to generate the training and test set
+Generator <- function() {
+
+# Take only complete cases
+sampledData <- as.data.frame(sampledData[complete.cases(sampledData),])
+
+# Generate randomized train and test sets
+samplesTrain <- sample(1:nrow(sampledData), round(0.75*nrow(sampledData)), replace=FALSE)
+trainSet <- sampledData[samplesTrain,]
+testSet <- sampledData[-samplesTrain,]
+
+# Take columns that have a statistically significant relationship to the response
+trainSet <- subset(trainSet, select = c(genderSuspectsBinary, genderVictims, statusSuspects, statusVictims, number_victims, ageSuspects,ageVictims))
+testSet <- subset(testSet, select = c(genderSuspectsBinary, genderVictims, statusSuspects, statusVictims, number_victims, ageSuspects,ageVictims))
+
+# Get subset of sampledData for further analysis
+subData <- subset(sampledData, select = c(genderSuspectsBinary, genderVictims, statusSuspects, statusVictims, number_victims, ageSuspects,ageVictims))
+
+# Get the unique values for each column in subData
+uniqueData <- sapply(subData, function(x){unique(x)})
+
+# Get the unique values for each column in training set
+uniqueTrain <- sapply(trainSet, function(x){unique(x)})
+
+# Check if the training set contains all the options for each variable
+results <- c()
+for (i in 1:length(uniqueTrain)){
+  results <- c(results, all(length(uniqueTrain[[i]]) == length(uniqueData[[i]])))
+}
+
+# Return sets only if training set contain all options
+if (all(results)){
+  return(list(trainSet, testSet, samplesTrain))
+} else {return('Run again')}
+} 
+
+
+```
+
+
+```{r Create-training-set-and-test-set, echo=FALSE, message = FALSE, warning = FALSE, results = FALSE}
+
+# Run Generator function to create training and test sets
+sets <- Generator()
+
+# Run the function until it provides the sets
+while (sets == 'Run again'){
+  sets <- Generator()
+}
+
+# Normalize the data
+trainSet <- normalize(subset(sets[[1]], select = -c(genderSuspectsBinary)))
+testSet <- normalize(subset(sets[[2]], select = -c(genderSuspectsBinary)))
+
+# Change response varianle to a factor
+trainSet$genderSuspectsBinary <- as.factor(sets[[1]]$genderSuspectsBinary)
+testSet$genderSuspectsBinary <- as.factor(sets[[2]]$genderSuspectsBinary)
+
+
+```
+
+## Classification model - decision tree
+
+A decision tree was chosen as the first classification model. Our response variable is the suspect's gender, which is a categorical variable. Our predictors are both categorical and numerical variables. A decision tree model can handle both types of variables which is why we chose it as a classification model. Furthermore, the response is binary, which can be easily classified with a decision tree model. The model was trained on the training set.
+
+We plotted the tree model itself. It can be seen that the first node of the tree is the victim's gender, therefore victim's age is the attribute that has the highest information gain. In other words, the victim's gender produces the best division of the data for suspect's gender. The lower we go down the node, the smaller the information gain from those attributes (variables).
+
+**Note: The 'state' variable was removed, because it increased the running time considerably but did not improve the accuracy of the model.
+
+```{r Train-tree-model, message = FALSE, warning = FALSE, results = FALSE}
+### Train models for the prediction of the gender of the suspect ###
+
+# Train decision tree model
+treeModel <- rpart(genderSuspectsBinary~., data = trainSet, method = 'class')
+
+# Plot the trained decision tree model
+print(rpart.plot(treeModel))
+```
+
+## Classification model - Naive-Bayes
+
+Naive-bayes model was the second option for a classification model. This model does require normally distributed data. But our data set was larger enough to use, despite the fact that the data was not normally distributed.The model was trained on the training set . 
+
+```{r Train-naive-bayes-model, message = FALSE, warning = FALSE, results = FALSE}
+# Train Naive-Bayes model
+nbModel <- naive_bayes(genderSuspectsBinary~., data = trainSet)
+```
+
+## Prediction and ROC curve
+
+Both models were used to predict the suspect's gender in the test set. To estimate the goodness of the models, we calculated the accuracy for each model. The accuracies for both models can be seen in the title of the graph below. The accuracy level of the decision tree model was about 80% and for the naive-bayes model was about 70%. The difference in accuracy between the models was about 10%. It can be due to the fact that the data was not normally distributed, which is the distribution naive-bayes model requires. 
+
+In addition, we plotted a ROC curve to further compare between the models. It can be shown in the graph that again the decision tree model has higher AUC than the naive-bayes model. This supports our conclusion that the decision tree model is a better classification model for this data. 
+
+
+```{r prediction, echo=FALSE, message = FALSE, warning = FALSE, results = FALSE}
+# Predict the suspect's gender in the test set - Decision tree model
+predictTreeC <- predict(treeModel, testSet, type = 'class')
+
+# Predict the suspect's gender in the test set - Naive Bayes model
+predictNBC <- predict(nbModel, testSet, type = 'class')
+
+# Calculate accuracy for both models
+accTree <- round(100*sum(predictTreeC == testSet$genderSuspectsBinary)/nrow(testSet))
+accNB <- round(100*sum(predictNBC == testSet$genderSuspectsBinary)/nrow(testSet))
+
+# Predict the probability of suspect's gender in the test set - Decision tree model
+predictTreeP <- predict(treeModel, testSet, type = 'prob')
+
+# Predict the probability of suspect's gender in the test set - Naive Bayes model
+predictNBP <- predict(nbModel, testSet, type = 'prob')
+
+# Plot ROC curve to estimate models
+par(pty = 's')
+roc(testSet$genderSuspectsBinary, predictTreeP[,2], plot = TRUE, legacy.axes = TRUE, col = 'Blue', lwd = 2, print.auc = TRUE)
+plot.roc(testSet$genderSuspectsBinary, predictNBP[,2], col = 'Red', lwd = 2, print.auc = TRUE, print.auc.y = 0.4, add = TRUE)
+title(paste("Accuracy: Decision Tree = ",accTree,"% , Naive-Bayes = ", accNB,"%"))
+legend("bottomright", c("Decision Tree", "Naive-Bayes"), lty=1, 
+    col = c("blue", "red"), bty="n",inset=c(0,0.15))
+```
+
+# Summary
+
+Our hypothesis was that the suspect's gender is related to the other variables in the data, such as victim's gender, suspect's age, victim's age, etc. Firstly, we tested the relationship between suspect's gender and other variables. We found the variables with a statistically significant relationship to the suspect's gender.The variables we found were use in our classification models, to predict the suspect's gender. We assumed that if the relationships between the response (suspect's gender) and the predictors is indeed strong, we could train a model to predict the suspect's gender based on these variables. 
+
+We split the data to training set and test set. Next, we trained the models on the training set and the trained models were used to predict the suspect's gender in the test set. The accuracy of the decision tree model was about 80% and of the naive-bayes model was about 70%. These levels of accuracy support our hypothesis that the variables we chose have a relationship with the suspect's gender and they do help make accurate prediction.
+
+Our accuracy could be improved by cleaning and getting larger data set. In addition, we ignored rows that contained more than one suspect or one victim. Future projects could include those rows, as they might help get a more accurate classification models. For example, hypothetically female suspects might have more incidents with multiple suspects than male suspects. Future research could investigate the possibility of predicting a different variable in the data, such as suspect's age or suspect's status. Predicting those variables could help identify future suspects earlier and prevent deaths caused by gun violence.
+

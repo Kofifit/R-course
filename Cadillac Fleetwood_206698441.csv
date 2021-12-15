@@ -1,0 +1,33 @@
+"rownames.mtcars.","mtcars.gear","mtcars.mpg","mtcars.am","mtcars.disp"
+"Cadillac Fleetwood",3,10.4,0,472
+"Lincoln Continental",3,10.4,0,460
+"Camaro Z28",3,13.3,0,350
+"Duster 360",3,14.3,0,360
+"Chrysler Imperial",3,14.7,0,440
+"Merc 450SLC",3,15.2,0,275.8
+"AMC Javelin",3,15.2,0,304
+"Dodge Challenger",3,15.5,0,318
+"Merc 450SE",3,16.4,0,275.8
+"Merc 450SL",3,17.3,0,275.8
+"Valiant",3,18.1,0,225
+"Hornet Sportabout",3,18.7,0,360
+"Pontiac Firebird",3,19.2,0,400
+"Hornet 4 Drive",3,21.4,0,258
+"Toyota Corona",3,21.5,0,120.1
+"Merc 280C",4,17.8,0,167.6
+"Merc 280",4,19.2,0,167.6
+"Mazda RX4",4,21,1,160
+"Mazda RX4 Wag",4,21,1,160
+"Volvo 142E",4,21.4,1,121
+"Datsun 710",4,22.8,1,108
+"Merc 230",4,22.8,0,140.8
+"Merc 240D",4,24.4,0,146.7
+"Fiat X1-9",4,27.3,1,79
+"Honda Civic",4,30.4,1,75.7
+"Fiat 128",4,32.4,1,78.7
+"Toyota Corolla",4,33.9,1,71.1
+"Maserati Bora",5,15,1,301
+"Ford Pantera L",5,15.8,1,351
+"Ferrari Dino",5,19.7,1,145
+"Porsche 914-2",5,26,1,120.3
+"Lotus Europa",5,30.4,1,95.1

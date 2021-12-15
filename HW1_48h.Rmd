@@ -1,0 +1,500 @@
+---
+title: "Special HW1"
+output:
+  html_document: 
+   self_contained: yes
+  pdf_document: default
+---
+
+```{r setup, cache = F, echo = F, message = F, warning = F, tidy = F}
+# make this an external chunk that can be included in any file
+library(knitr)
+options(width = 70)
+opts_chunk$set(message = F, error = F, warning = F, collapse=T, comment = "##", fig.align = 'center', dpi = 100, tidy = F, cache = T, cache.path = '.cache/', fig.path = 'fig/', out.extra = 'class="plot"')
+
+options(xtable.type = 'html')
+knit_hooks$set(inline = function(x) {
+  if(is.numeric(x)) {
+    round(x, getOption('digits'))
+  } else {
+    paste(as.character(x), collapse = ', ')
+  }
+})
+knit_hooks$set(plot = knitr:::hook_plot_html)
+
+library(ggplot2)
+library(dplyr)
+library(ggseqlogo)
+library(RColorBrewer)
+library(ComplexHeatmap)
+library(stats)
+library(plyr)
+library(e1071)
+library(gridExtra)
+```
+
+
+## Exercise 1
+
+The mice data folder contains 21 files. Each file is a mouse antibody repertoire sequencing data (similar to the dataset from HW2). The name of the file contains the mouse name and the time point in which it was collected (for example df_m1_2w.csv refers to m1 mouse and to 2w time point).  The dataset contains the following columns:
+
+| column   | Explanation                                                                                                                                                                         |
+|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v_call   | The closest V gene match that could be assigned to the sequence. (Family-Gene*Allele)                                                                                               |
+| j_call   | The closest J gene match that could be assigned to the sequence. (Gene*Allele)                                                                                                      |
+| junction | Represents the most variable part of the antibody sequence that plays an important role in binding pathogens. The value is a character string, which corresponds to a DNA sequence. |
+| c_call   | The information regarding the presumed isotype based on computational methods.                                                                                                      |
+| tissue   | The tissue from which the blood sample was taken and sequenced.                                                                                                                     |
+| file     | The file name. 
+
+1. Read the tables to R and merge them into a single dataframe with a column that represents the mouse name and a column that represents the time point. 
+
+```{r}
+
+# Set working directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# Get names of file in the "mice data" folder
+fileName <- list.files("./mice data")
+
+# Adjust names in order to use them later in read.csv()
+fileName <- lapply(fileName, function(x){paste('./mice data/',x, sep = "")})
+
+# Load files to a list
+df <- lapply(1:length(fileName), function(x){read.csv(unlist(fileName[x]))})
+
+# Define new data frame for all the data
+Data <- data.frame()
+
+# Loop to add the data from the files to one general dataframe
+for (i in 1:21) {
+  mouse = sub("_.*", "", df[[i]]$file) # Get mouse's name to a list
+  TP = sub(".*_", "", df[[i]]$file) # Get time point to a list
+  df[[i]] <- cbind(mouse, TP, df[[i]]) # Add mouse's name and time point to data frame
+  df[[i]] <- subset(df[[i]], select = -file) # Delete column of file name
+  Data <- rbind(Data, df[[i]]) # Add the current mouse's dataframe to the general dataframe
+  }
+```
+
+2. Filter the resulting data frame by these conditions: (tissue is spleen and c_call is IGM) or (tissue is in colon, ileum, duodenum  and c_call is IGA), and save the filtered data into a new dataframe. 
+
+```{r}
+
+# Find row where conditions are TRUE
+vCell <- apply(Data, 1, function(x){isTRUE(x[7] == 'spleen' && x[6] == 'IGM' || x[7] == 'colon' && x[6] == 'IGA' || x[7] == 'ileum' && x[6] == 'IGA' || x[7] == 'duodenum' && x[6] == 'IGA')}) 
+
+# Filter the data and add to new dataframe
+filteredData <- Data[vCell,] 
+
+```
+
+3. Remove the IGH pattern from v_call and j_call columns. 
+
+```{r}
+
+# Remove the "IGH" substring from v_call column
+filteredData$v_call <- lapply(filteredData$v_call, function(x){sub(".*IGH","", x)})
+
+# Remove the "IGH" substring from j_call column
+filteredData$j_call <- lapply(filteredData$j_call, function(x){sub(".*IGH","", x)})
+```
+
+4. Create a new column that represents the different subsets. Each subset contains the same V gene, J gene, and junction length separated by “_” (Remember HW2, create new columns for the genes and the junction length). Name the new column: subset
+For example for V gene- V3-6 and J gene- J2 and junction length of 12, the value in the subset column will be  V3-6_J2_12
+
+
+```{r}
+# Create new column for name of V gene and add to dataframe
+filteredData$vGene <- sub("\\*.*", "", filteredData$v_call)
+
+# Create new column for name of J gene and add to dataframe
+filteredData$jGene <- sub("\\*.*", "", filteredData$j_call)
+
+# Create new column for junction's length and add to dataframe
+filteredData$junction_length <- sapply(filteredData$junction, function(x){nchar(x)})
+
+# Create new column for subset and add to dataframe
+filteredData$subset <- paste(filteredData$vGene, filteredData$jGene, filteredData$junction_length, sep = "_")
+
+```
+
+5. Find 3 subsets with a count of exactly 20 rows. Create a Hamming distance matrix for the junction sequences of each subset. The matrix should be as follows: each row and column is a junction nucleotides sequence and the values are the distance between them. The distance is calculated using Hamming distance, a metric for comparing strings. In short the hamming distance is the number of positions at which the corresponding nucleotides are different. For example, for these junction sequences: ACGTGGCGG, ACGTGTCGG, GCCACAGAT, GCCACAGAG we will get this matrix:
+
+
+
+|            | ACGTGGCGG | ACGTGTCGG | GCCACAGATT | GCCACAGATG |
+|------------|-----------|-----------|------------|------------|
+| ACGTGGCGG  | 0         | 1         | 8          | 7          |
+| ACGTGTCGG  | 1         | 0         | 8          | 7          |
+| GCCACAGATT | 8         | 8         | 0          | 1          |
+| GCCACAGATG | 7         | 7         | 1          | 0          |
+
+
+```{r}
+
+# Count the number of repetitions  for each subset
+repSubsets <- count(filteredData$subset)
+
+# Find subsets with exactly 20 rows
+repSubsets <- repSubsets$x[repSubsets$freq == 20]
+
+# Get junctions for each subset
+x1 <- unique(filteredData$junction[filteredData$subset == repSubsets[1]])
+x2 <- unique(filteredData$junction[filteredData$subset == repSubsets[2]])
+x3 <- unique(filteredData$junction[filteredData$subset == repSubsets[3]])
+
+# Create empty matrix for each subset
+mat1 <- matrix(0, length(x1), length(x1))
+rownames(mat1) <- x1
+colnames(mat1) <- x1
+mat2 <- matrix(0, length(x2), length(x2))
+rownames(mat2) <- x2
+colnames(mat2) <- x2
+mat3 <- matrix(0, length(x3), length(x3))
+rownames(mat3) <- x3
+colnames(mat3) <- x3
+
+# Calculate distance matrix for first subset
+for (i in 1:length(x1)) {
+  for (j in 1:length(x1)){
+    mat1[i,j] = mapply(function(x,y) sum(x!=y),strsplit(x1[i],""),strsplit(x1[j],""))
+  }
+}
+
+# Calculate distance matrix for second subset
+for (i in 1:length(x2)) {
+  for (j in 1:length(x2)){
+    mat2[i,j] = mapply(function(x,y) sum(x!=y),strsplit(x2[i],""),strsplit(x2[j],""))
+  }
+}
+
+# Calculate distance matrix for third subset
+for (i in 1:length(x3)) {
+  for (j in 1:length(x3)){
+    mat3[i,j] = mapply(function(x,y) sum(x!=y),strsplit(x3[i],""),strsplit(x3[j],""))
+  }
+}
+
+```
+
+6. Visualize the subsets distance matrix and sequences as a heatmap and create a sequence logo. The heatmap should be with 5 colors using the OrRd palette. The sequence logo is a visualization that shows the number of nucleotide appearances for each position. For creating the sequence logo you can look here, make sure you define the y-axis as probability and not as bits. The final figure should be with two panels, the upper panel with the sequence logo and the lower with the heatmap, along the lines of the example below. 
+
+![](Q1_6.png)
+
+```{r}
+
+# Choose 5 colors from the 'Blues' color palette
+coul <- colorRampPalette(brewer.pal(5, "OrRd"))(25)
+
+## mat1 ##
+# Create heatmap with the function from ComplexHeatmap package
+print(Heatmap(mat1, col = coul))
+
+# Create sequence logo
+print(ggseqlogo(x1, method = 'prob'))
+
+## mat2 ##
+# Create heatmap with the function from ComplexHeatmap package
+print(Heatmap(mat2, col = coul))
+
+# Create sequence logo
+print(ggseqlogo(x2, method = 'prob'))
+
+## mat3 ##
+# Create heatmap with the function from ComplexHeatmap package
+print(Heatmap(mat3, col = coul))
+
+# Create sequence logo
+print(ggseqlogo(x3, method = 'prob'))
+
+ 
+
+
+
+
+
+```
+
+7. Create a new column that represents the different groups of mice per c_call, tissue and TP separated by “_”. Name the new column: Group. For example for c_call: IGA, tissue: colon and TP: 2w, the group value is: IGA_colon_2w
+
+
+```{r}
+
+# Create new column for Group and add to dataframe
+filteredData$Group <- paste(filteredData$c_call, filteredData$tissue, filteredData$TP, sep = "_")
+
+```
+
+8. Find the 100 subsets (V_J_JUNCTION) with the highest frequency for each group (a group contains the same c_call, tissue and TP). Then, calculate the Jaccard distance between any 2 groups to get a distance matrix between all the groups using the Jaccard distance metric. For example if for IGA_colon_2w I got these 3 subsets with the highest frequency: V3-6_J2_12, V1-63_J1_36, V3-6_J3_18 and for IGM_spleen_4w I got these 3 subsets with the highest frequency: V5-9_J2_12, V3-6_J2_12, V1-63_J1_36. Then the Jaccard distance between these 2 groups is: 1-2/4=0.5. Following is the Jaccard distance matrix for the example:
+
+
+|               | IGA_colon_2w | IGM_spleen_4w | ... |
+|---------------|--------------|---------------|-----|
+| IGA_colon_2w  | 0            | 0.5           | ... |
+| IGM_spleen_4w | 0.5          | 0             | ... |
+| ...           | ...          | ...           | ... |
+
+```{r}
+
+# Create empty matrix 
+x <- unique(filteredData$Group)
+mat <- matrix(0, length(x), length(x))
+rownames(mat) <- x
+
+# Initialize list for subsets and counter for loop
+subList <- vector(mode = "list", length = length(x))
+counter <- 1
+
+# Find 100 subsets with the highest frequency for each group
+for (currGroup in x){
+  
+  # Count the number of repetitions of subsets for current group
+  currSubsets <- count(filteredData$subset[filteredData$Group == currGroup])
+  
+  # Find 100 subsets with the highest frequency
+  currSubsets <- currSubsets[order(currSubsets$freq, decreasing = T),] 
+  currSubsets <- currSubsets$x[1:100]
+  
+  # Add subsets to list
+  subList[counter] <- list(currSubsets)
+  
+  # Update counter
+  counter <- counter + 1
+  
+}
+
+# Calculate distance matrix
+for (i in 1:length(subList)) {
+  for (j in 1:length(subList)){
+    
+    inter <- length(intersect(subList[[i]], subList[[j]]))
+    uni <- length(subList[[i]]) + length(subList[[j]]) - inter
+    mat[i,j] <- 1-inter/uni
+  }
+}
+
+```
+
+9. Using the distance matrix from question 8, create a heatmap using the Heatmap function from the ComplexHeatmap package that represents the Jaccard distance matrix. The heatmap should be with 5 colors from the Blues palette. What conclusion can you draw from the graph?
+
+
+```{r}
+
+# Choose 5 colors from the 'Blues' color palette
+coul <- colorRampPalette(brewer.pal(5, "Blues"))(25)
+
+# Create heatmap with the function from ComplexHeatmap package
+Heatmap(mat, col = coul)
+
+
+```
+
+### Conclusion
+
+## DNA from the same tissue or the same time point is similar. It can be seen near the diagnol of the matrix where the squares are lighter than the ones on the outer sides of the heatmap.
+
+10. Set the R seed to be the first 5 digits of your ID [seed(12345)] and then sample 900 observations from each group. Find the 20 subsets (V_J_JUNCTION) with the highest frequency for each group (a group contains the same c_call, tissue and TP). Then, calculate the Jaccard distance between any 2 groups to get a distance matrix between all the groups using the Jaccard distance metric. Using the distance matrix, create a heatmap using the Heatmap function from the ComplexHeatmap package that represents the Jaccard distance matrix. The heatmap should be with 5 colors from the Blues palette. Did you get similar results to the results from question 9? explain.  
+
+```{r}
+
+# Set seed
+set.seed(20669)
+
+# Create empty matrix
+x <- unique(filteredData$Group)
+disMat <- matrix(0, length(x), length(x))
+rownames(disMat) <- x
+
+# Initialize list for subsets and counter for loop
+subList <- vector(mode = "list", length = length(x))
+counter <- 1 
+
+
+for (currGroup in x){
+  
+  # Get rows for current group
+  currSubsets <- filteredData$subset[filteredData$Group == currGroup]
+  
+  # Choose 900 rows randomly
+  currSubsets <- currSubsets[sample(1:length(currSubsets), 900, replace=T)]
+  
+  # Find 20 subsets with the highest frequency for current group
+  currSubsets <- count(currSubsets)
+  currSubsets <- currSubsets[order(currSubsets$freq, decreasing = T),] 
+  currSubsets <- currSubsets$x[1:20]
+  
+  # Add subsets to list
+  subList[counter] <- list(currSubsets)
+  
+  # Update counter
+  counter <- counter + 1
+  
+}
+
+# Calculate the matrix distance for the groups
+for (i in 1:length(subList)) {
+  for (j in 1:length(subList)){
+    
+    inter <- length(intersect(subList[[i]], subList[[j]]))
+    uni <- length(subList[[i]]) + length(subList[[j]]) - inter
+    disMat[i,j] <- 1-inter/uni
+  }
+}
+
+# Choose 5 colors from the 'Blues' color palette
+coul <- colorRampPalette(brewer.pal(5, "Blues"))(25)
+
+# Create heatmap with the function from ComplexHeatmap package
+Heatmap(disMat, col = coul)
+
+```
+
+### Explain
+
+## Although the heatmap we got here is very close to the heatmap from section 9. There is a difference in the area near the diagnol. In the first heatmap, it seems like there is more similarity between the different groups. Especially, we can see that groups from the same tissue or the same time point are lighter in the first heatmap.
+
+## Exercise 2
+
+The weatherAUS.csv dataset contains about 10 years of daily weather observations from many locations across Australia. The dataset contains the following columns:
+
+| column   | Explanation                                             |
+|----------|---------------------------------------------------------|
+| Date     | The date of observation.                                |
+| Location | The common name of the location of the weather station. |
+| MinTemp  | The minimum temperature in degrees celsius.             |
+| MaxTemp  | The maximum temperature in degrees celsius.             |
+
+1. Clean the data from NA values in MinTemp and MaxTemp variables using complete.cases function.
+
+
+```{r}
+# Load data 
+weatherData <- read.csv('weatherAUS.csv')
+
+# Clean row with NA in MinTemp column or MaxTemp column
+weatherData <- weatherData[complete.cases(weatherData$MinTemp),]
+weatherData <- weatherData[complete.cases(weatherData$MaxTemp),]
+
+
+```
+
+2. Create new columns representing the year, the month and the day of the Date variable.
+
+```{r}
+
+# Split date string to substrings
+dateStr <- strsplit(weatherData$Date,split='-')
+
+# Add Year column to dataframe
+weatherData$Year <- lapply(dateStr, function(x){unlist(x)[1]})
+
+# Add Month column to dataframe
+weatherData$Month <- lapply(dateStr, function(x){unlist(x)[2]})
+
+# Add Day column to dataframe
+weatherData$Day <- lapply(dateStr, function(x){unlist(x)[3]})
+
+
+```
+
+3. Calculate the daily average of MinTemp for each location and year using the apply functions.
+
+
+```{r}
+# Create column that combine the location and the year
+weatherData$LY <- paste(weatherData$Location, weatherData$Year)
+
+# Calculate the mean for each location and each year
+meanTemp <- sapply(unique(weatherData$LY), function(x){mean(weatherData$MinTemp[weatherData$LY == x])})
+
+# Print results
+print(meanTemp)
+
+
+```
+
+4. Create the following graph. Note that:
+  (a) MeanTemp is the daily average between MinTemp and MaxTemp.
+
+  (b) The vertical axes show the temperature in both Celsius and Fahrenheit.
+
+![](Q2_4.png)
+
+```{r}
+
+weatherData$meanTemp <- rowMeans(cbind(weatherData$MinTemp, weatherData$MaxTemp))
+dart <- weatherData[weatherData$Location == 'Dartmoor',]
+sydn <- weatherData[weatherData$Location == 'Sydney',]
+
+# Create plot for Dartmoor
+ggplot(dart, aes(x = Date, group = 1)) + 
+  geom_line(aes(y = MinTemp), color = "red") + 
+  geom_line(aes(y = MaxTemp), color="green") +
+  geom_line(aes(y = meanTemp), color = 'blue')
+
+# Create plot for Sydney
+ggplot(sydn, aes(x = Date, group = 1)) + 
+  geom_line(aes(y = MinTemp), color = "red") + 
+  geom_line(aes(y = MaxTemp), color="green") +
+  geom_line(aes(y = meanTemp), color = 'blue')+
+  scale_fill_discrete(name = "Variable")
+```
+
+  
+5. Rank the years in the data according to:
+  (a) The maximal MaxTemp in this (calendaric) year
+```{r}
+# Get all the years from the data
+yearVec <- unique(weatherData$Year)
+
+# Initialize vector for maximal values
+maxVec <- vector()
+
+for (currYear in yearVec){
+  
+  # Get data for current year
+  currData <- weatherData$MaxTemp[weatherData$Year == currYear]
+  
+  # Find maximal MaxTemp and add it to the vector
+  maxVec <- c(maxVec, currData[which.max(currData)])
+}
+
+# Create dataframe for year and maximal MaxTemp
+rankMAX <- data.frame(maxVec)
+rankMAX$Year <- yearVec
+
+# Order the dataframe from lowest to highest
+rankMAX <- rankMAX[order(rankMAX$maxVec),]
+
+# Add rank column to dataframe
+rankMAX$Rank <- 1:11
+
+```
+
+
+  (b) The minimal MinTemp in this (calendaric) year
+```{r}
+# Initialize vector for maximal values
+minVec <- vector()
+
+for (currYear in yearVec){
+  
+  # Get data for current year
+  currData <- weatherData$MinTemp[weatherData$Year == currYear]
+  
+  # Find maximal MaxTemp and add it to the vector
+  minVec <- c(minVec, currData[which.min(currData)])
+}
+
+# Create dataframe for year and maximal MaxTemp
+rankMIN <- data.frame(minVec)
+rankMIN$Year <- yearVec
+
+# Order/Rank the dataframe from lowest to highest
+rankMIN <- rankMIN[order(rankMIN$minVec),]
+
+# Add rank column to dataframe
+rankMIN$Rank <- 1:11
+
+```
+  
